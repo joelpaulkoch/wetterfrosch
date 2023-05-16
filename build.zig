@@ -4,23 +4,19 @@ const Step = std.build.Step;
 const LibExeObjStep = std.build.LibExeObjStep;
 
 const builtin = @import("builtin");
-const uf2 = @import("deps/uf2/src/main.zig");
 const rp2040 = @import("deps/rp2040/build.zig");
+const uf2 = @import("deps/uf2/src/main.zig");
 
 pub fn build(b: *Builder) void {
-    const mode = b.standardReleaseOptions();
-    // const target = b.standardTargetOptions(.{});
+    const optimize = b.standardOptimizeOption(.{});
 
-    var exe = rp2040.addPiPicoExecutable(b, "wetterfrosch", "src/main.zig", .{}
-    // .target = target,
-    );
-    exe.setBuildMode(mode);
+    var exe = rp2040.addPiPicoExecutable(b, .{ .name = "wetterfrosch", .source_file = .{ .path = "src/main.zig" }, .optimize = optimize });
 
     const uf2_step = uf2.Uf2Step.create(exe.inner, .{
         .family_id = .RP2040,
     });
     uf2_step.install();
-    exe.install();
+    b.installArtifact(exe.inner);
 
     // const exe_tests = b.addTest(.{
     //     .root_source_file = .{ .path = "src/main.zig" },

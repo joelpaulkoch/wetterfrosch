@@ -39,34 +39,60 @@ const pin_config = GlobalConfiguration{
     },
 };
 
-pub fn blink(pin: rp2040.GPIO) void {
-    pin.put(1);
-    time.sleep_ms(500);
-    pin.put(0);
-    time.sleep_ms(500);
+const spi = rp2040.spi.num(1);
+
+const uart = rp2040.uart.num(0);
+const baud_rate = 115200;
+const uart_tx_pin = gpio.num(0);
+const uart_rx_pin = gpio.num(1);
+
+pub fn panic(message: []const u8, _: ?*std.builtin.StackTrace, _: ?usize) noreturn {
+    std.log.err("panic: {s}", .{message});
+    @breakpoint();
+    while (true) {}
 }
 
+pub const std_options = struct {
+    pub const log_level = .info;
+    pub const logFn = rp2040.uart.log;
+};
+
 pub fn main() !void {
+    uart.apply(.{
+        .baud_rate = baud_rate,
+        .tx_pin = uart_tx_pin,
+        .rx_pin = uart_rx_pin,
+        .clock_config = rp2040.clock_config,
+    });
+
+    rp2040.uart.init_logger(uart);
+
     const pins = pin_config.apply();
     pins.cs.put(1);
 
-    const spi = rp2040.spi.SPI.init(1, .{ .clock_config = rp2040.clock_config, .sck_pin = 10, .csn_pin = 9, .tx_pin = 11, .baud_rate = 4000 * 1000 });
+    spi.apply(.{ .clock_config = rp2040.clock_config, .sck_pin = gpio.num(10), .csn_pin = gpio.num(9), .tx_pin = gpio.num(11), .baud_rate = 4000 * 1000 });
 
-    const epaper = display.Display{ .width = width, .height = height, .pin_config = pin_config, .lut = ws_lut };
+    const epaper = display.Display{ .width = width, .height = height, .pin_config = pin_config, .spi = spi, .lut = ws_lut };
+
     pins.led.put(1);
     time.sleep_ms(200);
     pins.led.put(0);
-    epaper.init(pins, spi);
+
+    epaper.init(pins);
     pins.led.put(1);
     time.sleep_ms(5000);
-    epaper.clear(pins, spi);
-    // pins.led.put(0);
-    // time.sleep_ms(5000);
-    // pins.led.put(1);
-    // display.display(pins, spi);
+    std.log.debug("\n--------------------", .{});
+    epaper.clear(pins);
+    pins.led.put(0);
+    time.sleep_ms(5000);
+    pins.led.put(1);
+    std.log.debug("\n--------------------", .{});
+    const image = [_]u8{ 0, 0, 0, 0, 0, 0, 0, 0, 1, 1, 1, 1, 1, 1, 1, 1 };
+    epaper.show_image(pins, &image);
     time.sleep_ms(10000);
-    // pins.led.put(0);
-    // display.clear(pins, spi);
+    std.log.debug("\n--------------------", .{});
+    epaper.clear(pins);
+    time.sleep_ms(10000);
 
     var count: u2 = 0;
     while (count < 3) : (count += 1) {
