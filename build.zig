@@ -18,11 +18,10 @@ pub fn build(b: *Builder) void {
     uf2_step.install();
     b.installArtifact(exe.inner);
 
-    // const exe_tests = b.addTest(.{
-    //     .root_source_file = .{ .path = "src/main.zig" },
-    //     .target = target,
-    // });
+    const exe_tests = b.addTest(.{
+        .root_source_file = .{ .path = "src/main.zig" },   
+    });
 
-    // const test_step = b.step("test", "Run unit tests");
-    // test_step.dependOn(&exe_tests.step);
+    const test_step = b.step("test", "Run unit tests");
+    test_step.dependOn(&exe_tests.step);
 }
