@@ -40,6 +40,7 @@ pub const Display = struct {
     };
 
     pub fn init(comptime display: Display, pins: Pins(display.pin_config)) void {
+        std.log.debug("\n--------------------", .{});
         std.log.debug("Init:\n", .{});
 
         display.reset(pins);
@@ -195,6 +196,7 @@ pub const Display = struct {
         display.send_data(pins, lut[158]);
     }
     pub fn clear(comptime display: Display, pins: Pins(display.pin_config)) void {
+        std.log.debug("\n--------------------", .{});
         std.log.debug("Clear:\n", .{});
         const screenWidth = if (display.width % 8 == 0) (display.width / 8) else (display.width / 8 + 1);
         const screenHeight = display.height;
@@ -213,12 +215,13 @@ pub const Display = struct {
     }
 
     pub fn sleep(comptime display: Display, pins: Pins(display.pin_config)) void {
-        send_command(pins, 0x10);
-        send_data(0x01);
+        display.send_command(pins, 0x10);
+        display.send_data(pins, 0x01);
         time.sleep_ms(100);
     }
 
     pub fn show_image(comptime display: Display, pins: Pins(display.pin_config), image: []const u8) void {
+        std.log.debug("\n--------------------", .{});
         std.log.debug("Display image:\n", .{});
         const screenWidth = if (display.width % 8 == 0) (display.width / 8) else (display.width / 8 + 1);
         const screenHeight = display.height;
