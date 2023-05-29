@@ -84,7 +84,7 @@ pub fn main() !void {
     pins.led.put(1);
 
     epaper.show_image(pins, &images.image_2in13);
-    time.sleep_ms(60000);
+    time.sleep_ms(10000);
 
     epaper.init(pins);
     epaper.clear(pins);
