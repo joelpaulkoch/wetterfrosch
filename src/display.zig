@@ -8,18 +8,16 @@ const GlobalConfiguration = rp2040.pins.GlobalConfiguration;
 const Pins = rp2040.pins.Pins;
 const SPI = rp2040.spi.SPI;
 
-const EpdConfiguration = struct {
-    width: comptime_int,
-    height: comptime_int,
-    lut: [159]u8,
-    init_sequence: [3]u8,
-};
-
 pub const Display = struct {
     epd_config: EpdConfiguration,
     pin_config: GlobalConfiguration,
     spi: SPI,
 
+    pub const EpdConfiguration = struct {
+        width: comptime_int,
+        height: comptime_int,
+        init_sequence: []const InitBlock,
+    };
     const DisplayMode = enum(u8) {
         display_mode_1 = 0xC7, // full update
         display_mode_2 = 0x0C, // 0x0F, 0xCF // partial update (2in13, 2in9, 2in9_4grey) fast:0x0c, quality:0x0f, 0xcf
@@ -54,13 +52,13 @@ pub const Display = struct {
         @"-1.3_to_-1.4" = 0x36,
     };
 
-    const Command = enum(u8) {
+    pub const Command = enum(u8) {
         clear = 0x00,
         display_update_sequence_option = 0x22,
         activate_display_update_sequence = 0x20,
         gate_voltage = 0x03,
         source_voltage = 0x04,
-        vcom = 0x2c,
+        vcom = 0x2C,
         set_ram_x_address_start_end_position = 0x44,
         set_ram_y_address_start_end_position = 0x45,
         set_ram_x_address_counter = 0x4E,
@@ -71,12 +69,20 @@ pub const Display = struct {
         border_waveform = 0x3C,
         display_update_control = 0x21,
         read_built_in_temperature_sensor = 0x18,
-        @"0x3f" = 0x3f, // 0x3f
+        @"0x3f" = 0x3F, // 0x3f
         write_LUT_register = 0x32, // 0x32
         write_image_to_ram = 0x24, // 0x24 write image to ram
         write_image_to_ram_color = 0x26, // 0x26 write image to ram
         // 0x37
         enter_deep_sleep = 0x10,
+        set_analog_block_control = 0x74,
+        set_digital_block_control = 0x7E,
+        dummy_line = 0x3A,
+        gate_time = 0x3B,
+    };
+    pub const InitBlock = struct {
+        command: Command,
+        data: []const u8,
     };
 
     pub fn init(comptime display: Display, pins: Pins(display.pin_config)) void {
@@ -94,31 +100,14 @@ pub const Display = struct {
         display.send_command(pins, Command.swreset);
         display.wait_while_busy(pins);
 
-        display.send_command(pins, Command.driver_output_control);
-
-        display.send_data(pins, display.epd_config.init_sequence[0]);
-        display.send_data(pins, display.epd_config.init_sequence[1]);
-        display.send_data(pins, display.epd_config.init_sequence[2]);
-
-        display.send_command(pins, Command.data_entry_mode);
-        display.send_data(pins, 0x03);
-
-        display.set_windows(pins, 0, 0, (display.epd_config.width - 1), (display.epd_config.height - 1));
-        display.set_cursor(pins, 0, 0);
-
-        display.send_command(pins, Command.border_waveform);
-        display.send_data(pins, 0x05);
-
-        display.send_command(pins, Command.display_update_control);
-        display.send_data(pins, 0x00);
-        display.send_data(pins, 0x80);
-
-        display.send_command(pins, Command.read_built_in_temperature_sensor);
-        display.send_data(pins, 0x80);
+        inline for (display.epd_config.init_sequence[0..]) |init_block| {
+            display.send_command(pins, init_block.command);
+            inline for (init_block.data[0..]) |data| {
+                display.send_data(pins, data);
+            }
+        }
 
         display.wait_while_busy(pins);
-
-        display.lut_by_host(pins, display.epd_config.lut);
     }
 
     pub fn reset(comptime display: Display, pins: Pins(display.pin_config)) void {
@@ -178,54 +167,6 @@ pub const Display = struct {
         display.wait_while_busy(pins);
     }
 
-    pub fn set_windows(comptime display: Display, pins: Pins(display.pin_config), xStart: u16, yStart: u16, xEnd: u16, yEnd: u16) void {
-        display.send_command(pins, Command.set_ram_x_address_start_end_position);
-        display.send_data(pins, @intCast(u8, (xStart >> 3)));
-        display.send_data(pins, @intCast(u8, (xEnd >> 3)));
-
-        display.send_command(pins, Command.set_ram_y_address_start_end_position);
-        display.send_data(pins, @intCast(u8, yStart));
-        display.send_data(pins, @intCast(u8, (yStart >> 8)));
-        display.send_data(pins, @intCast(u8, yEnd));
-        display.send_data(pins, @intCast(u8, (yEnd >> 8)));
-    }
-
-    pub fn set_cursor(comptime display: Display, pins: Pins(display.pin_config), xStart: u16, yStart: u16) void {
-        display.send_command(pins, Command.set_ram_x_address_counter);
-        display.send_data(pins, @intCast(u8, xStart));
-
-        display.send_command(pins, Command.set_ram_y_address_counter);
-        display.send_data(pins, @intCast(u8, yStart));
-        display.send_data(pins, @intCast(u8, (yStart >> 8)));
-    }
-
-    pub fn set_lut(comptime display: Display, pins: Pins(display.pin_config), lut: [159]u8) void {
-        display.send_command(pins, Command.write_LUT_register);
-
-        for (lut[0..153]) |byte| {
-            display.send_data(pins, byte);
-        }
-
-        display.wait_while_busy(pins);
-    }
-
-    pub fn lut_by_host(comptime display: Display, pins: Pins(display.pin_config), lut: [159]u8) void {
-        display.set_lut(pins, lut);
-
-        display.send_command(pins, Command.@"0x3f");
-        display.send_data(pins, @enumToInt(EOPT.normal));
-
-        display.send_command(pins, Command.gate_voltage);
-        display.send_data(pins, @enumToInt(VGH.@"20V"));
-
-        display.send_command(pins, Command.source_voltage);
-        display.send_data(pins, @enumToInt(VSH.@"15V"));
-        display.send_data(pins, @enumToInt(VSH.unknown));
-        display.send_data(pins, @enumToInt(VSL.@"-15V"));
-
-        display.send_command(pins, Command.vcom);
-        display.send_data(pins, @enumToInt(VCOM.@"-1.3_to_-1.4"));
-    }
     pub fn clear(comptime display: Display, pins: Pins(display.pin_config)) void {
         std.log.debug("\n--------------------", .{});
         std.log.debug("Clear:\n", .{});
@@ -282,30 +223,46 @@ test "display module compiles" {
 
 // predefined configurations
 
-pub const epd_2in13_V3_config = EpdConfiguration{
+pub const epd_2in13_V2_config = Display.EpdConfiguration{
     .width = 122,
     .height = 250,
-    .lut = [159]u8{
-        // keep format
-        0x80, 0x4A, 0x40, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
-        0x40, 0x4A, 0x80, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
-        0x80, 0x4A, 0x40, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
-        0x40, 0x4A, 0x80, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
-        0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
-        0x0F, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x0F, 0x00, 0x00, 0x0F, 0x00,
-        0x00, 0x02, 0x0F, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x01, 0x00, 0x00,
-        0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
-        0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
-        0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
-        0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
-        0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
-        0x22, 0x22, 0x22, 0x22, 0x22, 0x22, 0x00, 0x00, 0x00, 0x22, 0x17, 0x41,
-        0x00, 0x32, 0x36,
+    .init_sequence = &[_]Display.InitBlock{
+        .{ .command = Display.Command.set_analog_block_control, .data = &[_]u8{0x54} },
+        .{ .command = Display.Command.set_digital_block_control, .data = &[_]u8{0x3B} },
+        .{ .command = Display.Command.driver_output_control, .data = &[_]u8{ 0xf9, 0x00, 0x00 } },
+        .{ .command = Display.Command.data_entry_mode, .data = &[_]u8{0x01} },
+        .{ .command = Display.Command.set_ram_x_address_start_end_position, .data = &[_]u8{ 0x00, 0x0F } },
+        .{ .command = Display.Command.set_ram_y_address_start_end_position, .data = &[_]u8{ 0xF9, 0x00, 0x00, 0x00 } },
+        .{ .command = Display.Command.border_waveform, .data = &[_]u8{0x03} },
+        .{ .command = Display.Command.vcom, .data = &[_]u8{0x55} },
+        .{ .command = Display.Command.gate_voltage, .data = &[_]u8{0x15} },
+        .{ .command = Display.Command.source_voltage, .data = &[_]u8{ 0x41, 0xA8, 0x32 } },
+        .{ .command = Display.Command.dummy_line, .data = &[_]u8{0x30} },
+        .{ .command = Display.Command.gate_time, .data = &[_]u8{0x0A} },
+        .{
+            .command = Display.Command.write_LUT_register,
+            .data = &[_]u8{
+                //keep format
+                0x80, 0x60, 0x40, 0x00, 0x00, 0x00, 0x00, //LUT0: BB:     VS 0 ~7
+                0x10, 0x60, 0x20, 0x00, 0x00, 0x00, 0x00, //LUT1: BW:     VS 0 ~7
+                0x80, 0x60, 0x40, 0x00, 0x00, 0x00, 0x00, //LUT2: WB:     VS 0 ~7
+                0x10, 0x60, 0x20, 0x00, 0x00, 0x00, 0x00, //LUT3: WW:     VS 0 ~7
+                0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, //LUT4: VCOM:   VS 0 ~7
+                0x03, 0x03, 0x00, 0x00, 0x02, // TP0 A~D RP0
+                0x09, 0x09, 0x00, 0x00, 0x02, // TP1 A~D RP1
+                0x03, 0x03, 0x00, 0x00, 0x02, // TP2 A~D RP2
+                0x00, 0x00, 0x00, 0x00, 0x00, // TP3 A~D RP3
+                0x00, 0x00, 0x00, 0x00, 0x00, // TP4 A~D RP4
+                0x00, 0x00, 0x00, 0x00, 0x00, // TP5 A~D RP5
+                0x00, 0x00, 0x00, 0x00, 0x00, // TP6 A~D RP6
+            },
+        },
+        .{ .command = Display.Command.set_ram_x_address_counter, .data = &[_]u8{0x00} },
+        .{ .command = Display.Command.set_ram_y_address_counter, .data = &[_]u8{ 0xF9, 0x00 } },
     },
-    .init_sequence = [_]u8{ 0xf9, 0x00, 0x00 },
 };
 
-pub const epd_2in9_config = EpdConfiguration{
+pub const epd_2in9_config = Display.EpdConfiguration{
     .width = 128,
     .height = 296,
     .lut = [159]u8{
@@ -343,5 +300,5 @@ pub const epd_2in9_config = EpdConfiguration{
         0x32, // VSL  = -15 V 157
         0x36, // VCOM = -1.3 to -1.4 (not shown on datasheet) 158
     },
-    .init_sequence = [_]u8{ 0x27, 0x01, 0x00 },
+    .init_sequence = [_]Display.InitBlock{ 0x27, 0x01, 0x00 },
 };
