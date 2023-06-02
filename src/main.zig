@@ -69,7 +69,7 @@ pub fn main() !void {
 
     spi.apply(.{ .clock_config = rp2040.clock_config, .sck_pin = gpio.num(10), .csn_pin = gpio.num(9), .tx_pin = gpio.num(11), .baud_rate = 4000 * 1000 });
 
-    const epaper = display.Display{ .epd_config = display.epd_2in13_V2_config, .pin_config = pin_config, .spi = spi };
+    const epaper = display.Display{ .epd_config = display.epd_2in9_V2_config, .pin_config = pin_config, .spi = spi };
 
     pins.led.put(1);
     time.sleep_ms(200);
@@ -83,7 +83,7 @@ pub fn main() !void {
     time.sleep_ms(5000);
     pins.led.put(1);
 
-    epaper.show_image(pins, &images.image_2in13);
+    epaper.show_image(pins, &images.image_2in9);
     time.sleep_ms(10000);
 
     epaper.init(pins);

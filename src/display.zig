@@ -69,7 +69,7 @@ pub const Display = struct {
         border_waveform = 0x3C,
         display_update_control = 0x21,
         read_built_in_temperature_sensor = 0x18,
-        @"0x3f" = 0x3F, // 0x3f
+        set_EOPT = 0x3F, // 0x3f
         write_LUT_register = 0x32, // 0x32
         write_image_to_ram = 0x24, // 0x24 write image to ram
         write_image_to_ram_color = 0x26, // 0x26 write image to ram
@@ -241,7 +241,7 @@ pub const epd_2in13_V2_config = Display.EpdConfiguration{
         .{ .command = Display.Command.gate_time, .data = &[_]u8{0x0A} },
         .{
             .command = Display.Command.write_LUT_register,
-            .data = &[_]u8{
+            .data = &[70]u8{
                 //keep format
                 0x80, 0x60, 0x40, 0x00, 0x00, 0x00, 0x00, //LUT0: BB:     VS 0 ~7
                 0x10, 0x60, 0x20, 0x00, 0x00, 0x00, 0x00, //LUT1: BW:     VS 0 ~7
@@ -262,43 +262,53 @@ pub const epd_2in13_V2_config = Display.EpdConfiguration{
     },
 };
 
-pub const epd_2in9_config = Display.EpdConfiguration{
+pub const epd_2in9_V2_config = Display.EpdConfiguration{
     .width = 128,
     .height = 296,
-    .lut = [159]u8{
-        //   0           1      2  3  4  5  6  7       8      9 10 11
-        0b10000000, 0b01100110, 0, 0, 0, 0, 0, 0, 0b01000000, 0, 0, 0, // LUT 0 (black to black)
-        0b00010000, 0b01100110, 0, 0, 0, 0, 0, 0, 0b00100000, 0, 0, 0, // LUT 1 (black to white)
-        0b10000000, 0b01100110, 0, 0, 0, 0, 0, 0, 0b01000000, 0, 0, 0, // LUT 2 (white to black)
-        0b00010000, 0b01100110, 0, 0, 0, 0, 0, 0, 0b00100000, 0, 0, 0, // LUT 3 (white to white)
-        0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, // LUT 4
-        //TP[A]
-        //  TP[B]
-        //      SR[AB]
-        //          TB[C]
-        //              TB[D]
-        //                  SR[CD]
-        //                      RP
-        20, 8, 0, 0, 0, 0, 1, // Group 0
-        10, 10, 0, 10, 10, 0, 1, // Group 1
-        0, 0, 0, 0, 0, 0, 0, // Group 2
-        0, 0, 0, 0, 0, 0, 0, // Group 3
-        0, 0, 0, 0, 0, 0, 0, // Group 4
-        0, 0, 0, 0, 0, 0, 0, // Group 5
-        0, 0, 0, 0, 0, 0, 0, // Group 6
-        0, 0, 0, 0, 0, 0, 0, // Group 7
-        20, 8, 0, 1, 0, 0, 1, // Group 8
-        0, 0, 0, 0, 0, 0, 1, // Group 9
-        0, 0, 0, 0, 0, 0, 0, // Group 11
-        0, 0, 0, 0, 0, 0, 0, // Group 12
-        0x44, 0x44, 0x44, 0x44, 0x44, 0x44, // Framerates (FR[0] to FR[11])
-        0, 0, 0, // Gate scan selection (XON)
-        0x22, // EOPT = Normal 153
-        0x17, // VGH  = 20V 154
-        0x41, // VSH1 = 15 V 155
-        0, // VSH2 = Unknown 156
-        0x32, // VSL  = -15 V 157
-        0x36, // VCOM = -1.3 to -1.4 (not shown on datasheet) 158
+    .init_sequence = &[_]Display.InitBlock{
+        .{ .command = Display.Command.driver_output_control, .data = &[_]u8{ 0x27, 0x01, 0x00 } },
+        .{ .command = Display.Command.data_entry_mode, .data = &[_]u8{0x03} },
+        .{ .command = Display.Command.set_ram_x_address_start_end_position, .data = &[_]u8{ 0x00, 0x0F } },
+        .{ .command = Display.Command.set_ram_y_address_start_end_position, .data = &[_]u8{ 0x00, 0x00, 0x27, 0x01 } },
+        .{ .command = Display.Command.display_update_control, .data = &[_]u8{ 0x00, 0x80 } },
+        .{ .command = Display.Command.set_ram_x_address_counter, .data = &[_]u8{0x00} },
+        .{ .command = Display.Command.set_ram_y_address_counter, .data = &[_]u8{ 0x00, 0x00 } },
+        .{
+            .command = Display.Command.write_LUT_register,
+            .data = &[153]u8{
+                //keep format
+                //   0           1      2  3  4  5  6  7       8      9 10 11
+                0b10000000, 0b01100110, 0, 0, 0, 0, 0, 0, 0b01000000, 0, 0, 0, // LUT 0 (black to black)
+                0b00010000, 0b01100110, 0, 0, 0, 0, 0, 0, 0b00100000, 0, 0, 0, // LUT 1 (black to white)
+                0b10000000, 0b01100110, 0, 0, 0, 0, 0, 0, 0b01000000, 0, 0, 0, // LUT 2 (white to black)
+                0b00010000, 0b01100110, 0, 0, 0, 0, 0, 0, 0b00100000, 0, 0, 0, // LUT 3 (white to white)
+                0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, // LUT 4
+                //TP[A]
+                //  TP[B]
+                //      SR[AB]
+                //          TB[C]
+                //              TB[D]
+                //                  SR[CD]
+                //                      RP
+                20, 8, 0, 0, 0, 0, 1, // Group 0
+                10, 10, 0, 10, 10, 0, 1, // Group 1
+                0, 0, 0, 0, 0, 0, 0, // Group 2
+                0, 0, 0, 0, 0, 0, 0, // Group 3
+                0, 0, 0, 0, 0, 0, 0, // Group 4
+                0, 0, 0, 0, 0, 0, 0, // Group 5
+                0, 0, 0, 0, 0, 0, 0, // Group 6
+                0, 0, 0, 0, 0, 0, 0, // Group 7
+                20, 8, 0, 1, 0, 0, 1, // Group 8
+                0, 0, 0, 0, 0, 0, 1, // Group 9
+                0, 0, 0, 0, 0, 0, 0, // Group 11
+                0, 0, 0, 0, 0, 0, 0, // Group 12
+                0x44, 0x44, 0x44, 0x44, 0x44, 0x44, // Framerates (FR[0] to FR[11])
+                0, 0, 0, // Gate scan selection (XON)
+            },
+        },
+        .{ .command = Display.Command.set_EOPT, .data = &[_]u8{0x22} },
+        .{ .command = Display.Command.gate_voltage, .data = &[_]u8{0x17} },
+        .{ .command = Display.Command.source_voltage, .data = &[_]u8{ 0x41, 0x00, 0x32 } },
+        .{ .command = Display.Command.vcom, .data = &[_]u8{0x36} },
     },
-    .init_sequence = [_]Display.InitBlock{ 0x27, 0x01, 0x00 },
 };
