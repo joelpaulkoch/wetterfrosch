@@ -100,9 +100,9 @@ pub const Display = struct {
         display.send_command(pins, Command.swreset);
         display.wait_while_busy(pins);
 
-        inline for (display.epd_config.init_sequence[0..]) |init_block| {
+        for (display.epd_config.init_sequence[0..]) |init_block| {
             display.send_command(pins, init_block.command);
-            inline for (init_block.data[0..]) |data| {
+            for (init_block.data[0..]) |data| {
                 display.send_data(pins, data);
             }
         }
