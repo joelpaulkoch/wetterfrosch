@@ -2,7 +2,7 @@ const std = @import("std");
 const font = @import("font.zig");
 fn insert_text_line(comptime image_width: u8, comptime image_height: u8, image: *[image_height][image_width]u1, line_index: usize, text_line: []const u8, font_width: u8, font_height: u8) void {
     for (text_line, 0..) |char, char_index| {
-        const char_bit_drawing = font.font(char);
+        const char_bit_drawing = font.font8(char);
         for (char_bit_drawing, 0..) |char_bits, char_bits_line| {
             // @memcpy(image[line_index * font_height + char_bits_line][char_index * font_width .. (1 + char_index) * font_width], &char_bits);
             for (char_bits, 0..) |bit, bit_index| {
@@ -124,10 +124,11 @@ const TextError = error{
     TooManyTextLines,
 };
 
-pub fn image_to_bytes(comptime width: u8, comptime height: u8, image: [height][width]u1) []const u8 {
-    const bytes_per_image_line = comptime std.math.divCeil(u8, width, 8) catch unreachable;
+pub fn image_to_bytes(comptime width: comptime_int, comptime height: comptime_int, image: [height][width]u1) []const u8 {
+    const bytes_per_image_line = comptime std.math.divCeil(u16, width, 8) catch unreachable;
     const bits_in_last_byte = comptime if (width % 8 == 0) 8 else width % 8;
-    var bytes: [height * bytes_per_image_line]u8 = undefined;
+    const bytes_in_image = height * bytes_per_image_line;
+    var bytes: [bytes_in_image]u8 = undefined;
     for (image, 0..) |image_line, line_index| {
         for (0..bytes_per_image_line - 1) |byte_index| {
             const byte =
@@ -140,14 +141,14 @@ pub fn image_to_bytes(comptime width: u8, comptime height: u8, image: [height][w
                 @intCast(u8, image_line[8 * byte_index + 6]) << 1 |
                 @intCast(u8, image_line[8 * byte_index + 7]) << 0;
 
-            bytes[line_index * bytes_per_image_line + byte_index] = byte;
+            bytes[line_index * bytes_per_image_line + byte_index] = ~(byte);
         }
         var last_byte: u8 = 0;
         for (0..bits_in_last_byte) |bit_index| {
             last_byte |=
                 @intCast(u8, image_line[8 * (bytes_per_image_line - 1) + bit_index]) << (7 - @intCast(u3, bit_index));
         }
-        bytes[line_index * bytes_per_image_line + (bytes_per_image_line - 1)] = last_byte;
+        bytes[line_index * bytes_per_image_line + (bytes_per_image_line - 1)] = ~(last_byte);
     }
     return &bytes;
 }
