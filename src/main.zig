@@ -1,7 +1,6 @@
 const std = @import("std");
 
 const microzig = @import("microzig");
-const display = @import("display.zig");
 const rp2040 = microzig.hal;
 const gpio = rp2040.gpio;
 const time = rp2040.time;
@@ -10,6 +9,9 @@ const Pins = rp2040.pins.Pins;
 const SPI = rp2040.spi.SPI;
 
 const images = @import("images.zig");
+const display = @import("display.zig");
+const weather = @import("weather.zig");
+const font = @import("font.zig");
 
 const pin_config = GlobalConfiguration{
     .GPIO8 = .{
@@ -69,7 +71,8 @@ pub fn main() !void {
 
     spi.apply(.{ .clock_config = rp2040.clock_config, .sck_pin = gpio.num(10), .csn_pin = gpio.num(9), .tx_pin = gpio.num(11), .baud_rate = 4000 * 1000 });
 
-    const epaper = display.Display{ .epd_config = display.epd_2in9_V2_config, .pin_config = pin_config, .spi = spi };
+    const epd_config = display.epd_2in13_V2_config;
+    const epaper = display.Display{ .epd_config = epd_config, .pin_config = pin_config, .spi = spi };
 
     pins.led.put(1);
     time.sleep_ms(200);
@@ -83,7 +86,17 @@ pub fn main() !void {
     time.sleep_ms(5000);
     pins.led.put(1);
 
-    epaper.show_image(pins, &images.image_2in9);
+    const text = weather.we2;
+    const image_layout: images.ImageLayout = .{
+        .width = epd_config.width,
+        .height = epd_config.height,
+        .horizontal = true,
+    };
+    const font_size: font.FontSize = .{ .width = 5, .height = 8 };
+    const image = images.text_to_image(image_layout, font_size, text) catch (images.text_to_image(image_layout, font_size, "error") catch unreachable);
+    const bytes = images.image_to_bytes_negated(epd_config.width, epd_config.height, image);
+
+    epaper.show_image(pins, bytes);
     time.sleep_ms(10000);
 
     epaper.init(pins);

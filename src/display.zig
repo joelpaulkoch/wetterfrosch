@@ -105,6 +105,10 @@ pub const Display = struct {
             for (init_block.data[0..]) |data| {
                 display.send_data(pins, data);
             }
+            time.sleep_ms(100);
+            if (init_block.command == Command.write_LUT_register) {
+                display.wait_while_busy(pins);
+            }
         }
 
         display.wait_while_busy(pins);
@@ -154,10 +158,10 @@ pub const Display = struct {
                 break;
             }
             std.log.debug("sleep for {}ms", .{10});
-            time.sleep_ms(10);
+            time.sleep_ms(50);
         }
         std.log.debug("sleep for {}ms", .{10});
-        time.sleep_ms(10);
+        time.sleep_ms(50);
     }
 
     pub fn turn_on(comptime display: Display, pins: Pins(display.pin_config)) void {
@@ -170,7 +174,7 @@ pub const Display = struct {
     pub fn clear(comptime display: Display, pins: Pins(display.pin_config)) void {
         std.log.debug("\n--------------------", .{});
         std.log.debug("Clear:\n", .{});
-        const screenWidth = if (display.epd_config.width % 8 == 0) (display.epd_config.width / 8) else (display.epd_config.width / 8 + 1);
+        const screenWidth = std.math.divCeil(u16, display.epd_config.width, 8) catch unreachable;
         const screenHeight = display.epd_config.height;
 
         display.send_command(pins, Command.write_image_to_ram);
@@ -195,7 +199,7 @@ pub const Display = struct {
     pub fn show_image(comptime display: Display, pins: Pins(display.pin_config), image: []const u8) void {
         std.log.debug("\n--------------------", .{});
         std.log.debug("Display:\n", .{});
-        const screenWidth = if (display.epd_config.width % 8 == 0) (display.epd_config.width / 8) else (display.epd_config.width / 8 + 1);
+        const screenWidth = std.math.divCeil(u16, display.epd_config.width, 8) catch unreachable;
         const screenHeight = display.epd_config.height;
 
         display.send_command(pins, Command.write_image_to_ram);
@@ -230,9 +234,9 @@ pub const epd_2in13_V2_config = Display.EpdConfiguration{
         .{ .command = Display.Command.set_analog_block_control, .data = &[_]u8{0x54} },
         .{ .command = Display.Command.set_digital_block_control, .data = &[_]u8{0x3B} },
         .{ .command = Display.Command.driver_output_control, .data = &[_]u8{ 0xf9, 0x00, 0x00 } },
-        .{ .command = Display.Command.data_entry_mode, .data = &[_]u8{0x01} },
+        .{ .command = Display.Command.data_entry_mode, .data = &[_]u8{0x03} },
         .{ .command = Display.Command.set_ram_x_address_start_end_position, .data = &[_]u8{ 0x00, 0x0F } },
-        .{ .command = Display.Command.set_ram_y_address_start_end_position, .data = &[_]u8{ 0xF9, 0x00, 0x00, 0x00 } },
+        .{ .command = Display.Command.set_ram_y_address_start_end_position, .data = &[_]u8{ 0x00, 0x00, 0xF9, 0x00 } },
         .{ .command = Display.Command.border_waveform, .data = &[_]u8{0x03} },
         .{ .command = Display.Command.vcom, .data = &[_]u8{0x55} },
         .{ .command = Display.Command.gate_voltage, .data = &[_]u8{0x15} },
@@ -258,7 +262,7 @@ pub const epd_2in13_V2_config = Display.EpdConfiguration{
             },
         },
         .{ .command = Display.Command.set_ram_x_address_counter, .data = &[_]u8{0x00} },
-        .{ .command = Display.Command.set_ram_y_address_counter, .data = &[_]u8{ 0xF9, 0x00 } },
+        .{ .command = Display.Command.set_ram_y_address_counter, .data = &[_]u8{ 0x00, 0x00 } },
     },
 };
 
@@ -268,8 +272,8 @@ pub const epd_2in9_V2_config = Display.EpdConfiguration{
     .init_sequence = &[_]Display.InitBlock{
         .{ .command = Display.Command.driver_output_control, .data = &[_]u8{ 0x27, 0x01, 0x00 } },
         .{ .command = Display.Command.data_entry_mode, .data = &[_]u8{0x03} },
-        .{ .command = Display.Command.set_ram_x_address_start_end_position, .data = &[_]u8{ 0x00, 0x0F } },
-        .{ .command = Display.Command.set_ram_y_address_start_end_position, .data = &[_]u8{ 0x00, 0x00, 0x27, 0x01 } },
+        .{ .command = Display.Command.set_ram_x_address_start_end_position, .data = &[_]u8{ 0x00, (127 >> 3) & 0xFF } },
+        .{ .command = Display.Command.set_ram_y_address_start_end_position, .data = &[_]u8{ 0x00, 0x00, 295 & 0xFF, (295 >> 8) & 0xFF } },
         .{ .command = Display.Command.display_update_control, .data = &[_]u8{ 0x00, 0x80 } },
         .{ .command = Display.Command.set_ram_x_address_counter, .data = &[_]u8{0x00} },
         .{ .command = Display.Command.set_ram_y_address_counter, .data = &[_]u8{ 0x00, 0x00 } },

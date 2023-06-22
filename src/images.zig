@@ -1,6 +1,8 @@
 const std = @import("std");
 const font = @import("font.zig");
+
 fn insert_text_line(comptime image_width: u8, comptime image_height: u8, image: *[image_height][image_width]u1, line_index: usize, text_line: []const u8, font_width: u8, font_height: u8) void {
+    if (font_height != 8) return;
     for (text_line, 0..) |char, char_index| {
         const char_bit_drawing = font.font8(char);
         for (char_bit_drawing, 0..) |char_bits, char_bits_line| {
@@ -12,12 +14,20 @@ fn insert_text_line(comptime image_width: u8, comptime image_height: u8, image: 
     }
 }
 
-pub fn text_to_image(comptime width: u8, comptime height: u8, text: []const u8) TextError![height][width]u1 {
-    const font_height = 5;
-    const font_width = 8;
+pub const ImageLayout = struct {
+    width: comptime_int,
+    height: comptime_int,
+    horizontal: bool = false,
+};
+
+pub fn text_to_image(comptime image_layout: ImageLayout, comptime font_size: font.FontSize, text: []const u8) TextError![image_layout.height][image_layout.width]u1 {
+    const width = image_layout.width;
+    const height = image_layout.height;
+    const font_height = font_size.height;
+    const font_width = font_size.width;
     var text_lines = std.mem.splitScalar(u8, text, '\n');
-    const image_text_lines = height / font_height;
-    const image_chars_per_line = width / font_width;
+    const image_text_lines = if (image_layout.horizontal) width / font_height else height / font_height;
+    const image_chars_per_line = if (image_layout.horizontal) height / font_width else width / font_width;
 
     var text_lines_count: u8 = 0;
     while (text_lines.next()) |text_line| {
@@ -32,90 +42,188 @@ pub fn text_to_image(comptime width: u8, comptime height: u8, text: []const u8) 
 
     var text_line = text_lines.first();
 
-    var image = std.mem.zeroes([height][width]u1);
-    for (0..image_text_lines) |line_index| {
-        insert_text_line(width, height, &image, line_index, text_line, font_width, font_height);
-        text_line = text_lines.next() orelse "";
-    }
+    if (image_layout.horizontal) {
+        var horizontal_image = std.mem.zeroes([width][height]u1);
+        for (0..image_text_lines) |line_index| {
+            insert_text_line(height, width, &horizontal_image, line_index, text_line, font_width, font_height);
+            text_line = text_lines.next() orelse "";
+        }
+        var image : [height][width]u1 = undefined;
+        for( 0..horizontal_image.len) |col_index|{
+            for(0..horizontal_image[0].len)|row_index|{
+                image[row_index][col_index] = horizontal_image[col_index][row_index];
+            }
+        }
+        return image;
+    } else {
+        var image = std.mem.zeroes([height][width]u1);
+        for (0..image_text_lines) |line_index| {
+            insert_text_line(width, height, &image, line_index, text_line, font_width, font_height);
+            text_line = text_lines.next() orelse "";
+        }
 
-    return image;
+        return image;
+    }
 }
 test "returns array of size height * width" {
-    const width = 4;
-    const height = 5;
-    const image = try text_to_image(width, height, "");
-    try std.testing.expectEqual(image.len, height);
-    try std.testing.expectEqual(image[0].len, width);
+    const layout = .{
+        .width = 4,
+        .height = 5,
+    };
+    const font_size = .{
+        .width = 1,
+        .height = 1,
+    };
+    const image = try text_to_image(layout, font_size, "");
+    try std.testing.expectEqual(image.len, layout.height);
+    try std.testing.expectEqual(image[0].len, layout.width);
 }
 
 test "should return 'Hi' as binary drawing" {
     const text = "Hi";
-    const bit_drawing = [5][16]u1{
+    const H_drawing = font.font8('H');
+    const i_drawing = font.font8('i');
+    const bit_drawing = [8][10]u1{
         //
-        [_]u1{ 0, 1, 0, 0, 0, 1, 0, 0, 0, 0, 0, 1, 0, 0, 0, 0 },
-        [_]u1{ 0, 1, 0, 0, 0, 1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0 },
-        [_]u1{ 0, 1, 1, 1, 1, 1, 0, 0, 0, 0, 0, 1, 0, 0, 0, 0 },
-        [_]u1{ 0, 1, 0, 0, 0, 1, 0, 0, 0, 0, 0, 1, 0, 0, 0, 0 },
-        [_]u1{ 0, 1, 0, 0, 0, 1, 0, 0, 0, 0, 0, 1, 0, 0, 0, 0 },
+        H_drawing[0] ++ i_drawing[0],
+        H_drawing[1] ++ i_drawing[1],
+        H_drawing[2] ++ i_drawing[2],
+        H_drawing[3] ++ i_drawing[3],
+        H_drawing[4] ++ i_drawing[4],
+        H_drawing[5] ++ i_drawing[5],
+        H_drawing[6] ++ i_drawing[6],
+        H_drawing[7] ++ i_drawing[7],
     };
-    const width = 16;
-    const height = 5;
+    const layout = .{
+        .width = 10,
+        .height = 8,
+    };
+    const font_size = .{
+        .width = 5,
+        .height = 8,
+    };
+    const drawing = try text_to_image(layout, font_size, text);
 
-    const drawing = try text_to_image(width, height, text);
+    try std.testing.expectEqual(bit_drawing, drawing);
+}
+test "should return 'Hi' as binary drawing but rotated by 90 degree" {
+    const text = "Hi";
+    const bit_drawing = [10][8]u1{
+        // keep format
+        [_]u1{ 0, 0, 1, 0, 0, 0, 0, 1, },
+        [_]u1{ 0, 0, 1, 1, 1, 1, 1, 1, },
+        [_]u1{ 0, 0, 1, 0, 0, 1, 0, 1, },
+        [_]u1{ 0, 0, 0, 0, 0, 1, 0, 0, },
+        [_]u1{ 0, 0, 1, 1, 1, 0, 1, 1, },
+        [_]u1{ 0, 0, 0, 0, 0, 0, 0, 0, },
+        [_]u1{ 0, 0, 1, 0, 0, 1, 0, 0, },
+        [_]u1{ 0, 0, 1, 1, 1, 1, 0, 1, },
+        [_]u1{ 0, 0, 1, 0, 0, 0, 0, 0, },
+        [_]u1{ 0, 0, 0, 0, 0, 0, 0, 0, },
+    };
+    const layout = .{
+        .width = 8,
+        .height = 10,
+        .horizontal = true,
+    };
+    const font_size = .{
+        .width = 5,
+        .height = 8,
+    };
+    const drawing = try text_to_image(layout, font_size, text);
+
     try std.testing.expectEqual(bit_drawing, drawing);
 }
 test "should fill remaining space with 0" {
     const text = "Hi";
-    const bit_drawing = [5][24]u1{
+    const H_drawing = font.font8('H');
+    const i_drawing = font.font8('i');
+    const bit_drawing = [8][15]u1{
         //
-        [_]u1{ 0, 1, 0, 0, 0, 1, 0, 0, 0, 0, 0, 1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0 },
-        [_]u1{ 0, 1, 0, 0, 0, 1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0 },
-        [_]u1{ 0, 1, 1, 1, 1, 1, 0, 0, 0, 0, 0, 1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0 },
-        [_]u1{ 0, 1, 0, 0, 0, 1, 0, 0, 0, 0, 0, 1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0 },
-        [_]u1{ 0, 1, 0, 0, 0, 1, 0, 0, 0, 0, 0, 1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0 },
+        H_drawing[0] ++ i_drawing[0] ++ [_]u1{0} ** 5,
+        H_drawing[1] ++ i_drawing[1] ++ [_]u1{0} ** 5,
+        H_drawing[2] ++ i_drawing[2] ++ [_]u1{0} ** 5,
+        H_drawing[3] ++ i_drawing[3] ++ [_]u1{0} ** 5,
+        H_drawing[4] ++ i_drawing[4] ++ [_]u1{0} ** 5,
+        H_drawing[5] ++ i_drawing[5] ++ [_]u1{0} ** 5,
+        H_drawing[6] ++ i_drawing[6] ++ [_]u1{0} ** 5,
+        H_drawing[7] ++ i_drawing[7] ++ [_]u1{0} ** 5,
     };
-    const width = 24;
-    const height = 5;
+    const layout = .{
+        .width = 15,
+        .height = 8,
+    };
+    const font_size = .{
+        .width = 5,
+        .height = 8,
+    };
+    const drawing = try text_to_image(layout, font_size, text);
 
-    const drawing = try text_to_image(width, height, text);
     try std.testing.expectEqual(bit_drawing, drawing);
 }
 test "should return TextError.TextTooLong if text too long" {
     const text = "Hi";
-    const width = 1;
-    const height = 5;
+    const layout = .{
+        .width = 1,
+        .height = 8,
+    };
+    const font_size = .{
+        .width = 5,
+        .height = 8,
+    };
+    const drawing = text_to_image(layout, font_size, text);
 
-    const drawing = text_to_image(width, height, text);
     try std.testing.expectError(TextError.TextTooLong, drawing);
 }
 test "should return TextError.TooManyTextLines if too many newlines in text" {
     const text = "Hi\nhi";
-    const width = 16;
-    const height = 5;
+    const layout = .{
+        .width = 10,
+        .height = 8,
+    };
+    const font_size = .{
+        .width = 5,
+        .height = 8,
+    };
+    const drawing = text_to_image(layout, font_size, text);
 
-    const drawing = text_to_image(width, height, text);
     try std.testing.expectError(TextError.TooManyTextLines, drawing);
 }
 
 test "should take newline into account" {
     const text = "He\nllo";
-    const bit_drawing = [10][24]u1{
+    const H_drawing = font.font8('H');
+    const e_drawing = font.font8('e');
+    const l_drawing = font.font8('l');
+    const o_drawing = font.font8('o');
+    const bit_drawing = [16][15]u1{
         //
-        [_]u1{ 0, 1, 0, 0, 0, 1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0 },
-        [_]u1{ 0, 1, 0, 0, 0, 1, 0, 0, 0, 1, 1, 1, 1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0 },
-        [_]u1{ 0, 1, 1, 1, 1, 1, 0, 0, 0, 1, 1, 1, 1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0 },
-        [_]u1{ 0, 1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0 },
-        [_]u1{ 0, 1, 0, 0, 0, 1, 0, 0, 0, 1, 1, 1, 1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0 },
-        [_]u1{ 0, 0, 0, 1, 0, 0, 0, 0, 0, 0, 0, 1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0 },
-        [_]u1{ 0, 0, 0, 1, 0, 0, 0, 0, 0, 0, 0, 1, 0, 0, 0, 0, 0, 1, 1, 1, 1, 0, 0, 0 },
-        [_]u1{ 0, 0, 0, 1, 0, 0, 0, 0, 0, 0, 0, 1, 0, 0, 0, 0, 0, 1, 0, 0, 1, 0, 0, 0 },
-        [_]u1{ 0, 0, 0, 1, 0, 0, 0, 0, 0, 0, 0, 1, 0, 0, 0, 0, 0, 1, 0, 0, 1, 0, 0, 0 },
-        [_]u1{ 0, 0, 0, 1, 1, 1, 0, 0, 0, 0, 0, 1, 1, 1, 0, 0, 0, 1, 1, 1, 1, 0, 0, 0 },
+        H_drawing[0] ++ e_drawing[0] ++ [_]u1{0} ** 5,
+        H_drawing[1] ++ e_drawing[1] ++ [_]u1{0} ** 5,
+        H_drawing[2] ++ e_drawing[2] ++ [_]u1{0} ** 5,
+        H_drawing[3] ++ e_drawing[3] ++ [_]u1{0} ** 5,
+        H_drawing[4] ++ e_drawing[4] ++ [_]u1{0} ** 5,
+        H_drawing[5] ++ e_drawing[5] ++ [_]u1{0} ** 5,
+        H_drawing[6] ++ e_drawing[6] ++ [_]u1{0} ** 5,
+        H_drawing[7] ++ e_drawing[7] ++ [_]u1{0} ** 5,
+        l_drawing[0] ++ l_drawing[0] ++ o_drawing[0],
+        l_drawing[1] ++ l_drawing[1] ++ o_drawing[1],
+        l_drawing[2] ++ l_drawing[2] ++ o_drawing[2],
+        l_drawing[3] ++ l_drawing[3] ++ o_drawing[3],
+        l_drawing[4] ++ l_drawing[4] ++ o_drawing[4],
+        l_drawing[5] ++ l_drawing[5] ++ o_drawing[5],
+        l_drawing[6] ++ l_drawing[6] ++ o_drawing[6],
+        l_drawing[7] ++ l_drawing[7] ++ o_drawing[7],
     };
-    const width = 24;
-    const height = 10;
-
-    const drawing = try text_to_image(width, height, text);
+    const layout = .{
+        .width = 15,
+        .height = 16,
+    };
+    const font_size = .{
+        .width = 5,
+        .height = 8,
+    };
+    const drawing = try text_to_image(layout, font_size, text);
     try std.testing.expectEqual(bit_drawing, drawing);
 }
 
@@ -124,7 +232,7 @@ const TextError = error{
     TooManyTextLines,
 };
 
-pub fn image_to_bytes(comptime width: comptime_int, comptime height: comptime_int, image: [height][width]u1) []const u8 {
+pub fn image_to_bytes_negated(comptime width: comptime_int, comptime height: comptime_int, image: [height][width]u1) []const u8 {
     const bytes_per_image_line = comptime std.math.divCeil(u16, width, 8) catch unreachable;
     const bits_in_last_byte = comptime if (width % 8 == 0) 8 else width % 8;
     const bytes_in_image = height * bytes_per_image_line;
@@ -154,22 +262,22 @@ pub fn image_to_bytes(comptime width: comptime_int, comptime height: comptime_in
 }
 test "should create single byte from slice of 8 bits" {
     const bits = [1][8]u1{[_]u1{ 0, 0, 0, 0, 0, 0, 0, 1 }};
-    const bytes = image_to_bytes(8, 1, bits);
-    try std.testing.expect(1 == bytes[0]);
+    const bytes = image_to_bytes_negated(8, 1, bits);
+    try std.testing.expect(1 == ~bytes[0]);
 }
 test "should fill last byte in line with zeros" {
     const bits = [1][9]u1{[_]u1{ 0, 0, 0, 0, 0, 0, 0, 1, 1 }};
-    const bytes = image_to_bytes(9, 1, bits);
-    try std.testing.expect(1 == bytes[0]);
-    try std.testing.expect(0b10000000 == bytes[1]);
+    const bytes = image_to_bytes_negated(9, 1, bits);
+    try std.testing.expect(1 == ~bytes[0]);
+    try std.testing.expect(0b10000000 == ~bytes[1]);
 }
 test "should convert multiple lines" {
     const bits = [2][9]u1{ [_]u1{ 0, 0, 0, 0, 0, 0, 0, 1, 1 }, [_]u1{ 1, 1, 1, 1, 1, 1, 1, 1, 1 } };
-    const bytes = image_to_bytes(9, 2, bits);
-    try std.testing.expect(1 == bytes[0]);
-    try std.testing.expect(0b10000000 == bytes[1]);
-    try std.testing.expect(0b11111111 == bytes[2]);
-    try std.testing.expect(0b10000000 == bytes[3]);
+    const bytes = image_to_bytes_negated(9, 2, bits);
+    try std.testing.expect(1 == ~bytes[0]);
+    try std.testing.expect(0b10000000 == ~bytes[1]);
+    try std.testing.expect(0b11111111 == ~bytes[2]);
+    try std.testing.expect(0b10000000 == ~bytes[3]);
 }
 pub const image_2in9 = [4736]u8{
     0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF,
