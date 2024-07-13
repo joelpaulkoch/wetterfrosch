@@ -6,7 +6,6 @@ fn insert_text_line(comptime image_width: u8, comptime image_height: u8, image: 
     for (text_line, 0..) |char, char_index| {
         const char_bit_drawing = font.font8(char);
         for (char_bit_drawing, 0..) |char_bits, char_bits_line| {
-            // @memcpy(image[line_index * font_height + char_bits_line][char_index * font_width .. (1 + char_index) * font_width], &char_bits);
             for (char_bits, 0..) |bit, bit_index| {
                 image[line_index * font_height + char_bits_line][char_index * font_width + bit_index] = bit;
             }
@@ -44,22 +43,22 @@ pub fn text_to_image(comptime image_layout: ImageLayout, comptime font_size: fon
 
     if (image_layout.horizontal) {
         var horizontal_image = std.mem.zeroes([width][height]u1);
-        for (0..image_text_lines) |line_index| {
+        for (0..text_lines_count) |line_index| {
             insert_text_line(height, width, &horizontal_image, line_index, text_line, font_width, font_height);
-            text_line = text_lines.next() orelse "";
+            text_line = text_lines.next() orelse break;
         }
-        var image : [height][width]u1 = undefined;
-        for( 0..horizontal_image.len) |col_index|{
-            for(0..horizontal_image[0].len)|row_index|{
-                image[row_index][col_index] = horizontal_image[col_index][row_index];
+        var image: [height][width]u1 = std.mem.zeroes([height][width]u1);
+        for (0..horizontal_image.len) |col_index| {
+            for (0..horizontal_image[0].len) |row_index| {
+                image[row_index][width - 1 - col_index] = horizontal_image[col_index][row_index];
             }
         }
         return image;
     } else {
         var image = std.mem.zeroes([height][width]u1);
-        for (0..image_text_lines) |line_index| {
+        for (0..text_lines_count) |line_index| {
             insert_text_line(width, height, &image, line_index, text_line, font_width, font_height);
-            text_line = text_lines.next() orelse "";
+            text_line = text_lines.next() orelse break;
         }
 
         return image;
@@ -83,6 +82,7 @@ test "should return 'Hi' as binary drawing" {
     const text = "Hi";
     const H_drawing = font.font8('H');
     const i_drawing = font.font8('i');
+    // zig fmt: off
     const bit_drawing = [8][10]u1{
         //
         H_drawing[0] ++ i_drawing[0],
@@ -94,6 +94,7 @@ test "should return 'Hi' as binary drawing" {
         H_drawing[6] ++ i_drawing[6],
         H_drawing[7] ++ i_drawing[7],
     };
+    // zig fmt: on
     const layout = .{
         .width = 10,
         .height = 8,
@@ -106,10 +107,34 @@ test "should return 'Hi' as binary drawing" {
 
     try std.testing.expectEqual(bit_drawing, drawing);
 }
+test "should work" {
+    const text =
+        \\ hallohal
+    ;
+    const layout = .{
+        .width = 250,
+        .height = 122,
+        .horizontal = false,
+    };
+    const font_size = .{
+        .width = 5,
+        .height = 8,
+    };
+    const drawing = try text_to_image(layout, font_size, text);
+
+    try std.testing.expect(@TypeOf(drawing) == [122][250]u1);
+    const bytes_per_image_line = comptime std.math.divCeil(u16, 122, 8) catch unreachable;
+    try std.testing.expectEqual(16, bytes_per_image_line);
+    const bytes_in_image = 250 * bytes_per_image_line;
+    try std.testing.expectEqual(4000, bytes_in_image);
+    // const bytes = image_to_bytes_negated(layout.width, layout.height, drawing);
+    // try std.testing.expectEqual(4000, bytes.len);
+}
+
 test "should return 'Hi' as binary drawing but rotated by 90 degree" {
     const text = "Hi";
+    // zig fmt: off
     const bit_drawing = [10][8]u1{
-        // keep format
         [_]u1{ 0, 0, 1, 0, 0, 0, 0, 1, },
         [_]u1{ 0, 0, 1, 1, 1, 1, 1, 1, },
         [_]u1{ 0, 0, 1, 0, 0, 1, 0, 1, },
@@ -121,9 +146,43 @@ test "should return 'Hi' as binary drawing but rotated by 90 degree" {
         [_]u1{ 0, 0, 1, 0, 0, 0, 0, 0, },
         [_]u1{ 0, 0, 0, 0, 0, 0, 0, 0, },
     };
+    // zig fmt: on
     const layout = .{
         .width = 8,
         .height = 10,
+        .horizontal = true,
+    };
+    const font_size = .{
+        .width = 5,
+        .height = 8,
+    };
+    const drawing = try text_to_image(layout, font_size, text);
+
+    try std.testing.expectEqual(bit_drawing, drawing);
+}
+test "should return 'Hi' as binary drawing but rotated by 90 degree with empty space below and to the left" {
+    const text = "Hi";
+    // zig fmt: off
+    const bit_drawing = [14][16]u1{
+        [_]u1{ 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1, 0, 0, 0, 0, 1, },
+        [_]u1{ 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1, 1, 1, 1, 1, 1, },
+        [_]u1{ 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1, 0, 0, 1, 0, 1, },
+        [_]u1{ 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1, 0, 0, },
+        [_]u1{ 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1, 1, 1, 0, 1, 1, },
+        [_]u1{ 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, },
+        [_]u1{ 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1, 0, 0, 1, 0, 0, },
+        [_]u1{ 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1, 1, 1, 1, 0, 1, },
+        [_]u1{ 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1, 0, 0, 0, 0, 0, },
+        [_]u1{ 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, },
+        [_]u1{ 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, },
+        [_]u1{ 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, },
+        [_]u1{ 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, },
+        [_]u1{ 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, },
+    };
+    // zig fmt: on
+    const layout = .{
+        .width = 16,
+        .height = 14,
         .horizontal = true,
     };
     const font_size = .{
@@ -138,8 +197,8 @@ test "should fill remaining space with 0" {
     const text = "Hi";
     const H_drawing = font.font8('H');
     const i_drawing = font.font8('i');
+    // zig fmt: off
     const bit_drawing = [8][15]u1{
-        //
         H_drawing[0] ++ i_drawing[0] ++ [_]u1{0} ** 5,
         H_drawing[1] ++ i_drawing[1] ++ [_]u1{0} ** 5,
         H_drawing[2] ++ i_drawing[2] ++ [_]u1{0} ** 5,
@@ -149,6 +208,7 @@ test "should fill remaining space with 0" {
         H_drawing[6] ++ i_drawing[6] ++ [_]u1{0} ** 5,
         H_drawing[7] ++ i_drawing[7] ++ [_]u1{0} ** 5,
     };
+    // zig fmt: on
     const layout = .{
         .width = 15,
         .height = 8,
@@ -196,8 +256,8 @@ test "should take newline into account" {
     const e_drawing = font.font8('e');
     const l_drawing = font.font8('l');
     const o_drawing = font.font8('o');
+    // zig fmt: off
     const bit_drawing = [16][15]u1{
-        //
         H_drawing[0] ++ e_drawing[0] ++ [_]u1{0} ** 5,
         H_drawing[1] ++ e_drawing[1] ++ [_]u1{0} ** 5,
         H_drawing[2] ++ e_drawing[2] ++ [_]u1{0} ** 5,
@@ -215,6 +275,7 @@ test "should take newline into account" {
         l_drawing[6] ++ l_drawing[6] ++ o_drawing[6],
         l_drawing[7] ++ l_drawing[7] ++ o_drawing[7],
     };
+    // zig fmt: on
     const layout = .{
         .width = 15,
         .height = 16,
@@ -227,42 +288,23 @@ test "should take newline into account" {
     try std.testing.expectEqual(bit_drawing, drawing);
 }
 
-const TextError = error{
+pub const TextError = error{
     TextTooLong,
     TooManyTextLines,
 };
 
-pub fn image_to_bytes_negated(comptime width: comptime_int, comptime height: comptime_int, image: [height][width]u1) []const u8 {
-    const bytes_per_image_line = comptime std.math.divCeil(u16, width, 8) catch unreachable;
-    const bits_in_last_byte = comptime if (width % 8 == 0) 8 else width % 8;
-    const bytes_in_image = height * bytes_per_image_line;
-    var bytes: [bytes_in_image]u8 = undefined;
+pub fn image_to_bytes_negated(image: []const []const u1, buffer: []u8) u16 {
     for (image, 0..) |image_line, line_index| {
-        for (0..bytes_per_image_line - 1) |byte_index| {
-            const byte =
-                @intCast(u8, image_line[8 * byte_index + 0]) << 7 |
-                @intCast(u8, image_line[8 * byte_index + 1]) << 6 |
-                @intCast(u8, image_line[8 * byte_index + 2]) << 5 |
-                @intCast(u8, image_line[8 * byte_index + 3]) << 4 |
-                @intCast(u8, image_line[8 * byte_index + 4]) << 3 |
-                @intCast(u8, image_line[8 * byte_index + 5]) << 2 |
-                @intCast(u8, image_line[8 * byte_index + 6]) << 1 |
-                @intCast(u8, image_line[8 * byte_index + 7]) << 0;
-
-            bytes[line_index * bytes_per_image_line + byte_index] = ~(byte);
+        for (image_line, 0..) |bit, bit_index| {
+            buffer[line_index * image[0].len + (bit_index / 8)].* |= (@intCast(u8, bit) << (bit_index % 8));
         }
-        var last_byte: u8 = 0;
-        for (0..bits_in_last_byte) |bit_index| {
-            last_byte |=
-                @intCast(u8, image_line[8 * (bytes_per_image_line - 1) + bit_index]) << (7 - @intCast(u3, bit_index));
-        }
-        bytes[line_index * bytes_per_image_line + (bytes_per_image_line - 1)] = ~(last_byte);
     }
-    return &bytes;
+    return 0;
 }
 test "should create single byte from slice of 8 bits" {
     const bits = [1][8]u1{[_]u1{ 0, 0, 0, 0, 0, 0, 0, 1 }};
-    const bytes = image_to_bytes_negated(8, 1, bits);
+    var bytes = [1]u8{0};
+    image_to_bytes_negated(&bits, &bytes);
     try std.testing.expect(1 == ~bytes[0]);
 }
 test "should fill last byte in line with zeros" {

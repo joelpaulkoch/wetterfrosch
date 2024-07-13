@@ -199,22 +199,25 @@ pub const Display = struct {
     pub fn show_image(comptime display: Display, pins: Pins(display.pin_config), image: []const u8) void {
         std.log.debug("\n--------------------", .{});
         std.log.debug("Display:\n", .{});
-        const screenWidth = std.math.divCeil(u16, display.epd_config.width, 8) catch unreachable;
-        const screenHeight = display.epd_config.height;
+        // const screenWidth = std.math.divCeil(u16, display.epd_config.width, 8) catch unreachable;
+        // const screenHeight = display.epd_config.height;
 
         display.send_command(pins, Command.write_image_to_ram);
-        var j: u16 = 0;
-        while (j < screenHeight) : (j += 1) {
-            var i: u16 = 0;
-            while (i < screenWidth) : (i += 1) {
-                const current_byte = i + j * screenWidth;
-                if (current_byte >= image.len) {
-                    display.send_data(pins, 0x00);
-                } else {
-                    display.send_data(pins, image[current_byte]);
-                }
-            }
+        for (image) |byte| {
+            display.send_data(pins, byte);
         }
+        // var j: u16 = 0;
+        // while (j < screenHeight) : (j += 1) {
+        //     var i: u16 = 0;
+        //     while (i < screenWidth) : (i += 1) {
+        //         const current_byte = i + j * screenWidth;
+        //         if (current_byte >= image.len) {
+        //             display.send_data(pins, 0xFF);
+        //         } else {
+        //             display.send_data(pins, image[current_byte]);
+        //         }
+        //     }
+        // }
 
         display.turn_on(pins);
     }
@@ -226,7 +229,7 @@ test "display module compiles" {
 }
 
 // predefined configurations
-
+// zig fmt: off
 pub const epd_2in13_V2_config = Display.EpdConfiguration{
     .width = 122,
     .height = 250,
@@ -246,7 +249,6 @@ pub const epd_2in13_V2_config = Display.EpdConfiguration{
         .{
             .command = Display.Command.write_LUT_register,
             .data = &[70]u8{
-                //keep format
                 0x80, 0x60, 0x40, 0x00, 0x00, 0x00, 0x00, //LUT0: BB:     VS 0 ~7
                 0x10, 0x60, 0x20, 0x00, 0x00, 0x00, 0x00, //LUT1: BW:     VS 0 ~7
                 0x80, 0x60, 0x40, 0x00, 0x00, 0x00, 0x00, //LUT2: WB:     VS 0 ~7
@@ -280,7 +282,6 @@ pub const epd_2in9_V2_config = Display.EpdConfiguration{
         .{
             .command = Display.Command.write_LUT_register,
             .data = &[153]u8{
-                //keep format
                 //   0           1      2  3  4  5  6  7       8      9 10 11
                 0b10000000, 0b01100110, 0, 0, 0, 0, 0, 0, 0b01000000, 0, 0, 0, // LUT 0 (black to black)
                 0b00010000, 0b01100110, 0, 0, 0, 0, 0, 0, 0b00100000, 0, 0, 0, // LUT 1 (black to white)

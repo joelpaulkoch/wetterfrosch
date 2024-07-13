@@ -79,31 +79,42 @@ pub fn main() !void {
     pins.led.put(0);
 
     epaper.init(pins);
-    pins.led.put(1);
-    time.sleep_ms(5000);
     epaper.clear(pins);
     pins.led.put(0);
-    time.sleep_ms(5000);
+    time.sleep_ms(500);
     pins.led.put(1);
 
-    const text = weather.we2;
+    const text =
+        \\ hallohallohallohalloha
+    ;
     const image_layout: images.ImageLayout = .{
         .width = epd_config.width,
         .height = epd_config.height,
         .horizontal = true,
     };
+
     const font_size: font.FontSize = .{ .width = 5, .height = 8 };
-    const image = images.text_to_image(image_layout, font_size, text) catch (images.text_to_image(image_layout, font_size, "error") catch unreachable);
-    const bytes = images.image_to_bytes_negated(epd_config.width, epd_config.height, image);
+    const bytes_per_image_line = comptime std.math.divCeil(u16, epd_config.width, 8) catch unreachable;
+    const bytes_in_image = comptime epd_config.height * bytes_per_image_line;
+
+    var bytes = [_]u8{0} ** bytes_in_image;
+    if (images.text_to_image(image_layout, font_size, text)) |image| {
+        images.image_to_bytes_negated(image, &bytes);
+    } else |err| {
+        const err_image =
+            switch (err) {
+            images.TextError.TextTooLong => images.text_to_image(image_layout, font_size, "Error: too long") catch unreachable,
+            images.TextError.TooManyTextLines => images.text_to_image(image_layout, font_size, "Error: too many lines") catch unreachable,
+        };
+        images.image_to_bytes_negated(err_image, &bytes);
+    }
 
     epaper.show_image(pins, bytes);
     time.sleep_ms(10000);
-
-    epaper.init(pins);
-    epaper.clear(pins);
-    time.sleep_ms(10000);
+    // epaper.init(pins);
+    // epaper.clear(pins);
+    time.sleep_ms(2000);
     epaper.sleep(pins);
-    time.sleep_ms(5000);
 
     var count: u2 = 0;
     while (count < 3) : (count += 1) {
