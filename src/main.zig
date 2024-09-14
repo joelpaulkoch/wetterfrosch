@@ -4,7 +4,6 @@ const microzig = @import("microzig");
 const rp2040 = microzig.hal;
 const gpio = rp2040.gpio;
 const time = rp2040.time;
-const GlobalConfiguration = rp2040.pins.GlobalConfiguration;
 const Pins = rp2040.pins.Pins;
 const SPI = rp2040.spi.SPI;
 
@@ -13,7 +12,7 @@ const display = @import("display.zig");
 const weather = @import("weather.zig");
 const font = @import("font.zig");
 
-const pin_config = GlobalConfiguration{
+const pin_config = rp2040.pins.GlobalConfiguration{
     .GPIO8 = .{
         .name = "dc",
         .direction = .out,
@@ -38,7 +37,7 @@ const pin_config = GlobalConfiguration{
     },
 };
 
-const spi = rp2040.spi.num(1);
+const spi = rp2040.spi.instance.SPI1;
 
 const uart = rp2040.uart.num(0);
 const baud_rate = 115200;
@@ -69,7 +68,7 @@ pub fn main() !void {
     const pins = pin_config.apply();
     pins.cs.put(1);
 
-    spi.apply(.{ .clock_config = rp2040.clock_config, .sck_pin = gpio.num(10), .csn_pin = gpio.num(9), .tx_pin = gpio.num(11), .baud_rate = 4000 * 1000 });
+    try spi.apply(.{ .clock_config = rp2040.clock_config, .baud_rate = 4000 * 1000 });
 
     const epd_config = display.epd_2in13_V2_config;
     const epaper = display.Display{ .epd_config = epd_config, .pin_config = pin_config, .spi = spi };
@@ -99,17 +98,17 @@ pub fn main() !void {
 
     var bytes = [_]u8{0} ** bytes_in_image;
     if (images.text_to_image(image_layout, font_size, text)) |image| {
-        images.image_to_bytes_negated(image, &bytes);
+        _ = images.image_to_bytes_negated(image_layout, image, &bytes);
     } else |err| {
         const err_image =
             switch (err) {
             images.TextError.TextTooLong => images.text_to_image(image_layout, font_size, "Error: too long") catch unreachable,
             images.TextError.TooManyTextLines => images.text_to_image(image_layout, font_size, "Error: too many lines") catch unreachable,
         };
-        images.image_to_bytes_negated(err_image, &bytes);
+        _ = images.image_to_bytes_negated(image_layout, err_image, &bytes);
     }
 
-    epaper.show_image(pins, bytes);
+    epaper.show_image(pins, &bytes);
     time.sleep_ms(10000);
     // epaper.init(pins);
     // epaper.clear(pins);
@@ -123,4 +122,11 @@ pub fn main() !void {
         pins.led.put(0);
         time.sleep_ms(250);
     }
+}
+
+test {
+    _ = images;
+    // _ = display;
+    _ = weather;
+    _ = font;
 }

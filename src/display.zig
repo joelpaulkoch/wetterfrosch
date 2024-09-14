@@ -134,8 +134,8 @@ pub const Display = struct {
         pins.dc.put(0);
         std.log.debug("Writing pin: {}, value: {}", .{ 9, 0 });
         pins.cs.put(0);
-        std.log.debug("Write byte to SPI: {x}", .{@enumToInt(command)});
-        _ = display.spi.write(&[_]u8{@enumToInt(command)});
+        std.log.debug("Write byte to SPI: {x}", .{@intFromEnum(command)});
+        _ = display.spi.write_blocking(u8, &[_]u8{@intFromEnum(command)});
         std.log.debug("Writing pin: {}, value: {}", .{ 9, 1 });
         pins.cs.put(1);
     }
@@ -146,7 +146,7 @@ pub const Display = struct {
         std.log.debug("Writing pin: {}, value: {}", .{ 9, 0 });
         pins.cs.put(0);
         std.log.debug("Write byte to SPI: {x}", .{data});
-        _ = display.spi.write(&[_]u8{data});
+        _ = display.spi.write_blocking(u8, &[_]u8{data});
         std.log.debug("Writing pin: {}, value: {}", .{ 9, 1 });
         pins.cs.put(1);
     }

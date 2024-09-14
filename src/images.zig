@@ -293,10 +293,12 @@ pub const TextError = error{
     TooManyTextLines,
 };
 
-pub fn image_to_bytes_negated(image: []const []const u1, buffer: []u8) u16 {
+pub fn image_to_bytes_negated(comptime image_layout: ImageLayout, image: [image_layout.height][image_layout.width]u1, buffer: []u8) u16 {
     for (image, 0..) |image_line, line_index| {
         for (image_line, 0..) |bit, bit_index| {
-            buffer[line_index * image[0].len + (bit_index / 8)].* |= (@intCast(u8, bit) << (bit_index % 8));
+            const casted_bit: u8 = @intCast(~bit);
+            const shift_by: u3 = @intCast(7 - bit_index % 8);
+            buffer[line_index * image[0].len + (bit_index / 8)] |= (casted_bit << shift_by);
         }
     }
     return 0;
@@ -304,18 +306,32 @@ pub fn image_to_bytes_negated(image: []const []const u1, buffer: []u8) u16 {
 test "should create single byte from slice of 8 bits" {
     const bits = [1][8]u1{[_]u1{ 0, 0, 0, 0, 0, 0, 0, 1 }};
     var bytes = [1]u8{0};
-    image_to_bytes_negated(&bits, &bytes);
-    try std.testing.expect(1 == ~bytes[0]);
+    const layout: ImageLayout = .{
+        .width = 8,
+        .height = 1,
+    };
+    _ = image_to_bytes_negated(layout, bits, &bytes);
+    try std.testing.expectEqual(1, ~bytes[0]);
 }
 test "should fill last byte in line with zeros" {
     const bits = [1][9]u1{[_]u1{ 0, 0, 0, 0, 0, 0, 0, 1, 1 }};
-    const bytes = image_to_bytes_negated(9, 1, bits);
-    try std.testing.expect(1 == ~bytes[0]);
-    try std.testing.expect(0b10000000 == ~bytes[1]);
+    const layout: ImageLayout = .{
+        .width = 9,
+        .height = 1,
+    };
+    var bytes = [_]u8{0} ** 2;
+    _ = image_to_bytes_negated(layout, bits, &bytes);
+    try std.testing.expectEqual(1, ~bytes[0]);
+    try std.testing.expectEqual(0b10000000, ~bytes[1]);
 }
 test "should convert multiple lines" {
     const bits = [2][9]u1{ [_]u1{ 0, 0, 0, 0, 0, 0, 0, 1, 1 }, [_]u1{ 1, 1, 1, 1, 1, 1, 1, 1, 1 } };
-    const bytes = image_to_bytes_negated(9, 2, bits);
+    const layout: ImageLayout = .{
+        .width = 9,
+        .height = 2,
+    };
+    var bytes = [_]u8{0} ** 4;
+    _ = image_to_bytes_negated(layout, bits, &bytes);
     try std.testing.expect(1 == ~bytes[0]);
     try std.testing.expect(0b10000000 == ~bytes[1]);
     try std.testing.expect(0b11111111 == ~bytes[2]);

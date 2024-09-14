@@ -1,0 +1,22 @@
+.{
+    .name = "wetterfrosch",
+    .version = "0.0.0",
+    .dependencies = .{
+        .@"microzig/build" = .{
+            .path = "../microzig/build",
+        },
+        .@"microzig/bsp/raspberrypi/rp2040" = .{
+            .path = "../microzig/bsp/raspberrypi/rp2040",
+        },
+        .@"microzig/tools/uf2" = .{
+            .path = "../microzig/tools/uf2",
+        },
+    },
+    .paths = .{
+        "LICENSE",
+        "README.adoc",
+        "build.zig.zon",
+        "build.zig",
+        "src",
+    },
+}

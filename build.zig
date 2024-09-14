@@ -4,24 +4,33 @@ const Step = std.build.Step;
 const LibExeObjStep = std.build.LibExeObjStep;
 
 const builtin = @import("builtin");
-const rp2040 = @import("deps/rp2040/build.zig");
-const uf2 = @import("deps/uf2/src/main.zig");
+const MicroZig = @import("microzig/build");
+const rp2040 = @import("microzig/bsp/raspberrypi/rp2040");
+const uf2 = @import("microzig/tools/uf2");
 
-pub fn build(b: *Builder) void {
+pub fn build(b: *std.Build) void {
+    const mz = MicroZig.init(b, .{});
     const optimize = b.standardOptimizeOption(.{});
 
-    var exe = rp2040.addPiPicoExecutable(b, .{ .name = "wetterfrosch", .source_file = .{ .path = "src/main.zig" }, .optimize = optimize });
-
-    const uf2_step = uf2.Uf2Step.create(exe.inner, .{
-        .family_id = .RP2040,
+    const firmware = mz.add_firmware(b, .{
+        .name = "wetterfrosch",
+        .target = rp2040.boards.raspberrypi.pico,
+        .optimize = optimize,
+        .root_source_file = b.path("src/main.zig"),
     });
-    uf2_step.install();
-    b.installArtifact(exe.inner);
 
-    const exe_tests = b.addTest(.{
-        .root_source_file = .{ .path = "src/main.zig" },   
-    });
+    // `install_firmware()` is the MicroZig pendant to `Build.installArtifact()`
+    // and allows installing the firmware as a typical firmware file.
+    //
+    // This will also install into `$prefix/firmware` instead of `$prefix/bin`.
+    mz.install_firmware(b, firmware, .{});
+
+    // For debugging, we also always install the firmware as an ELF file
+    mz.install_firmware(b, firmware, .{ .format = .elf });
 
     const test_step = b.step("test", "Run unit tests");
-    test_step.dependOn(&exe_tests.step);
+    const unit_tests = b.addTest(.{ .root_source_file = b.path("src/main.zig") });
+    const run_unit_tests = b.addRunArtifact(unit_tests);
+
+    test_step.dependOn(&run_unit_tests.step);
 }

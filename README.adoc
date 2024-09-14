@@ -1,1 +1,8 @@
-Your personal wetterfrosch
+# Your personal wetterfrosch
+
+You'll need a Raspberry Pi Pico W
+
+## Useful links
+
+https://www.raspberrypi.com/documentation/microcontrollers/debug-probe.html
+https://www.raspberrypi.com/documentation/microcontrollers/pico-series.html#raspberry-pi-pico-w-and-pico-wh
