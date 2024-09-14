@@ -179,10 +179,8 @@ pub const Display = struct {
 
         display.send_command(pins, Command.write_image_to_ram);
 
-        var j: u8 = 0;
-        while (j < screenHeight) : (j += 1) {
-            var i: u8 = 0;
-            while (i < screenWidth) : (i += 1) {
+        for (1..screenHeight) |_| {
+            for (1..screenWidth) |_| {
                 display.send_data(pins, 0xFF);
             }
         }
